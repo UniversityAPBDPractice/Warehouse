@@ -37,27 +37,31 @@ public class ProductWarehouseService : IProductWarehouseService
 
     public async Task<bool> CreateProductWarehouseProcedureAsync(int idProduct, int idWarehouse, int amount, CancellationToken token)
     {
-        using (SqlConnection con = new SqlConnection(_connectionString))
-        using (SqlCommand com = new SqlCommand("AddProductToWarehouse", con))
+        await using SqlConnection con = new SqlConnection(_connectionString); // I did it with Transaction, just to practise before the test
+        await con.OpenAsync(token);
+        await using var tr = (SqlTransaction)await con.BeginTransactionAsync(token);
+        try
         {
+            await using SqlCommand com = new SqlCommand("AddProductToWarehouse", con, tr);
             com.CommandType = CommandType.StoredProcedure;
             com.Parameters.AddWithValue("@IdProduct", idProduct);
             com.Parameters.AddWithValue("@IdWarehouse", idWarehouse);
             com.Parameters.AddWithValue("@Amount", amount);
             com.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
-
-            try
+            
+            var rowsAffected = await com.ExecuteNonQueryAsync(token);
+            if (rowsAffected == 0)
             {
-                await con.OpenAsync(token);
-                var rowsAffected = await com.ExecuteNonQueryAsync(token);
-                return rowsAffected > 0;
+                await tr.RollbackAsync(token);
+                return false;
             }
-            catch (SqlException ex)
-            {
-                Console.WriteLine("SQL Error: " + ex.Message); // Log this properly in production
-                throw;
-            }
+        }catch (Exception e)
+        {
+            await tr.RollbackAsync(token);
+            throw;
         }
+        await tr.CommitAsync(token);
+        return true;
     }
 
     public async Task<int> GetNewIdAsync(CancellationToken token)
