@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Warehouse.Entities;
 using Warehouse.Services.Abstractions;
 
@@ -56,6 +57,27 @@ public class WarehouseController : ControllerBase
         };
 
         await _productWarehouseService.CreateProductWarehouseAsync(newProductWarehouse, token);
+        return Ok();
+    }
+
+    [HttpPost]
+    [Route("/procedure/{idProduct:int}/{idWarehouse:int}/{amount:int}")]
+    public async Task<IActionResult> CreateProductWarehouseProcedureAsync(
+        [FromRoute] int idProduct,
+        [FromRoute] int idWarehouse,
+        [FromRoute] int amount,
+        CancellationToken token)
+    {
+        try
+        {
+            await _productWarehouseService.CreateProductWarehouseProcedureAsync(idProduct, idWarehouse, amount, token);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.StackTrace);
+            return StatusCode(400);
+        }
+
         return Ok();
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using System.Data;
+using Microsoft.Data.SqlClient;
 using Warehouse.Entities;
 using Warehouse.Services.Abstractions;
 
@@ -31,6 +32,31 @@ public class ProductWarehouseService : IProductWarehouseService
 
             var rowsAffected = await com.ExecuteNonQueryAsync(token);
             return rowsAffected;
+        }
+    }
+
+    public async Task<bool> CreateProductWarehouseProcedureAsync(int idProduct, int idWarehouse, int amount, CancellationToken token)
+    {
+        using (SqlConnection con = new SqlConnection(_connectionString))
+        using (SqlCommand com = new SqlCommand("AddProductToWarehouse", con))
+        {
+            com.CommandType = CommandType.StoredProcedure;
+            com.Parameters.AddWithValue("@IdProduct", idProduct);
+            com.Parameters.AddWithValue("@IdWarehouse", idWarehouse);
+            com.Parameters.AddWithValue("@Amount", amount);
+            com.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+
+            try
+            {
+                await con.OpenAsync(token);
+                var rowsAffected = await com.ExecuteNonQueryAsync(token);
+                return rowsAffected > 0;
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine("SQL Error: " + ex.Message); // Log this properly in production
+                throw;
+            }
         }
     }
 
