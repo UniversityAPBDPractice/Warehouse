@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Security.Claims;
+using System.Text;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -6,6 +9,7 @@ using Warehouse.Entities;
 using Warehouse.Services.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.IdentityModel.Tokens;
 using Warehouse.Helpers;
 
 namespace Warehouse.Controllers;
@@ -33,6 +37,7 @@ public class WarehouseController : ControllerBase
         _appUserService = appUserService;
     }
     
+    [Authorize]
     [HttpPost]
     [Route("{idProduct:int}/{idWarehouse:int}/{amount:int}")]
     public async Task<IActionResult> CreateProductWarehouseAsync(
@@ -66,6 +71,7 @@ public class WarehouseController : ControllerBase
         return Ok();
     }
 
+    [Authorize]
     [HttpPost]
     [Route("/procedure/{idProduct:int}/{idWarehouse:int}/{amount:int}")]
     public async Task<IActionResult> CreateProductWarehouseProcedureAsync(
@@ -99,5 +105,18 @@ public class WarehouseController : ControllerBase
     {
         _appUserService.RegisterUserAsync(model);
         return Ok();
+    }
+    
+    [AllowAnonymous]
+    [HttpPost("login")]
+    public async Task<IActionResult> Login(LoginRequest loginRequest)
+    {
+        var user = await _appUserService.LoginUserAsync(loginRequest);
+
+        if (user == null)
+            return Unauthorized();
+
+        // Generate tokens, etc.
+        return Ok(user);
     }
 }
