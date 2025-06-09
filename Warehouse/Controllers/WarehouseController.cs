@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Warehouse.Entities;
 using Warehouse.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity.Data;
+using Warehouse.Helpers;
 
 namespace Warehouse.Controllers;
 
@@ -15,16 +18,19 @@ public class WarehouseController : ControllerBase
     private IWarehouseService _warehouseService;
     private IOrderService _orderService;
     private IProductWarehouseService _productWarehouseService;
+    private IAppUserService _appUserService;
     public WarehouseController(
         IProductService productService,
         IWarehouseService warehouseService,
         IOrderService orderService,
-        IProductWarehouseService productWarehouseService)
+        IProductWarehouseService productWarehouseService,
+        IAppUserService appUserService)
     {
         _productService = productService;
         _warehouseService = warehouseService;
         _orderService = orderService;
         _productWarehouseService = productWarehouseService;
+        _appUserService = appUserService;
     }
     
     [HttpPost]
@@ -85,5 +91,13 @@ public class WarehouseController : ControllerBase
     public IActionResult ThrowError()
     {
         throw new Exception("Test exception from controller");
+    }
+    
+    [AllowAnonymous]
+    [HttpPost("register")]
+    public IActionResult RegisterUserAsync(RegisterRequest model)
+    {
+        _appUserService.RegisterUserAsync(model);
+        return Ok();
     }
 }

@@ -11,6 +11,7 @@ public static class ServicesDefaultImplementations
         services.AddScoped<IProductWarehouseService, ProductWarehouseService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
+        services.AddScoped<IAppUserService, AppUserService>();
 
         return services;
     }
