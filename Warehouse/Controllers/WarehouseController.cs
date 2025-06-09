@@ -119,4 +119,19 @@ public class WarehouseController : ControllerBase
         // Generate tokens, etc.
         return Ok(user);
     }
+    
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh(RefreshRequest refreshRequest)
+    {
+        try
+        {
+            var (accessToken, refreshToken) = await _appUserService.RefreshUserAsync(refreshRequest);
+            return Ok(new { accessToken, refreshToken });
+        }
+        catch (SecurityTokenException e)
+        {
+            return Unauthorized(new { message = e.Message });
+        }
+    }
 }

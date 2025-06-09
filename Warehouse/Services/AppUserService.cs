@@ -14,6 +14,7 @@ public class AppUserService : IAppUserService
 {
     private string _connectionString;
     private string _secretKey;
+
     public AppUserService(IConfiguration cfg)
     {
         _connectionString = cfg.GetConnectionString("Default") ??
@@ -21,10 +22,11 @@ public class AppUserService : IAppUserService
         _secretKey = cfg["SecretKey"];
 
     }
+
     public async Task<int> RegisterUserAsync(RegisterRequest model)
     {
         var hashedPasswordAndSalt = SecurityHelpers.GetHashedPasswordAndSalt(model.Password);
-        
+
         string query = @"
         INSERT INTO AppUsers (Email, Password, Salt, RefreshToken, RefreshTokenExp)
         VALUES (@Email, @Password, @Salt, @RefreshToken, @RefreshTokenExp);
@@ -40,7 +42,7 @@ public class AppUserService : IAppUserService
                 RefreshToken = SecurityHelpers.GenerateRefreshToken(),
                 RefreshTokenExp = DateTime.UtcNow.AddDays(1)
             };
-            
+
             await con.OpenAsync();
             com.Parameters.AddWithValue("@Email", parameters.Email);
             com.Parameters.AddWithValue("@Password", parameters.Password);
@@ -82,7 +84,7 @@ public class AppUserService : IAppUserService
                 {
                     return null; // Invalid password
                 }
-                
+
                 return new AppUser
                 {
                     Email = reader.GetString(reader.GetOrdinal("Email")),
@@ -93,5 +95,84 @@ public class AppUserService : IAppUserService
                 };
             }
         }
+    }
+
+    public async Task<(string accessToken, string refreshToken)> RefreshUserAsync(RefreshRequest refreshToken)
+    {
+        const string selectQuery = @"
+            SELECT Email, Password, Salt, RefreshToken, RefreshTokenExp
+            FROM AppUsers
+            WHERE RefreshToken = @RefreshToken;
+        ";
+
+        using var con = new SqlConnection(_connectionString);
+        await con.OpenAsync();
+
+        AppUser user = null;
+
+        // Step 1: Read and buffer the user
+        using (var cmd = new SqlCommand(selectQuery, con))
+        {
+            cmd.Parameters.AddWithValue("@RefreshToken", refreshToken.RefreshToken);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+                throw new SecurityTokenException("Invalid refresh token");
+
+            user = new AppUser
+            {
+                Email = reader.GetString(reader.GetOrdinal("Email")),
+                Password = reader.GetString(reader.GetOrdinal("Password")),
+                Salt = reader.GetString(reader.GetOrdinal("Salt")),
+                RefreshToken = reader.GetString(reader.GetOrdinal("RefreshToken")),
+                RefreshTokenExp = reader.GetDateTime(reader.GetOrdinal("RefreshTokenExp"))
+            };
+        } // <- reader is now closed
+
+        // Step 2: Validate token
+        if (user.RefreshTokenExp < DateTime.UtcNow)
+            throw new SecurityTokenException("Refresh token expired");
+
+        // Step 3: Generate JWT
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, user.Email),
+            new Claim(ClaimTypes.Role, "user")
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var jwtToken = new JwtSecurityToken(
+            issuer: "https://localhost:5001",
+            audience: "https://localhost:5001",
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(10),
+            signingCredentials: creds
+        );
+
+        var newRefreshToken = SecurityHelpers.GenerateRefreshToken();
+        var newRefreshExp = DateTime.UtcNow.AddDays(1);
+
+        // Step 4: Update the refresh token in DB
+        const string updateQuery = @"
+            UPDATE AppUsers
+            SET RefreshToken = @NewRefreshToken,
+                RefreshTokenExp = @NewRefreshExp
+            WHERE Email = @Email;
+        ";
+
+        using (var updateCmd = new SqlCommand(updateQuery, con))
+        {
+            updateCmd.Parameters.AddWithValue("@NewRefreshToken", newRefreshToken);
+            updateCmd.Parameters.AddWithValue("@NewRefreshExp", newRefreshExp);
+            updateCmd.Parameters.AddWithValue("@Email", user.Email);
+            await updateCmd.ExecuteNonQueryAsync();
+        }
+
+        return (
+            accessToken: new JwtSecurityTokenHandler().WriteToken(jwtToken),
+            refreshToken: newRefreshToken
+        );
     }
 }
