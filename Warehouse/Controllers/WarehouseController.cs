@@ -80,4 +80,10 @@ public class WarehouseController : ControllerBase
 
         return Ok();
     }
+    
+    [HttpGet("test-error")]
+    public IActionResult ThrowError()
+    {
+        throw new Exception("Test exception from controller");
+    }
 }

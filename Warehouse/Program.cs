@@ -1,3 +1,4 @@
+using Warehouse.Middlewares;
 using Warehouse.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,7 @@ if (app.Environment.IsDevelopment())
 }
 
 // app.UseHttpsRedirection();
+app.UseMiddleware<ErrorHandlingMiddleware>();
 
 app.UseAuthorization();
 
